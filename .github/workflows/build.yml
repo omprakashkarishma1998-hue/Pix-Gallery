@@ -19,17 +19,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: 8.7
+          gradle-version: 8.9
           cache-disabled: true
-      - name: Print Compose dependency tree
-        run: gradle :app:dependencies --configuration debugRuntimeClasspath > deps.txt || true
-        continue-on-error: true
-      - name: Upload dependency report
-        uses: actions/upload-artifact@v4
-        with:
-          name: deps-report
-          path: deps.txt
-        continue-on-error: true
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
       - name: Upload APK artifact
