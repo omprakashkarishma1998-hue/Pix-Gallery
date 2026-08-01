@@ -1,12 +1,7 @@
 pluginManagement {
     repositories {
         google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+ import androidx.compose.foundation.layout.* 
     repositories {
         google()
         mavenCentral()
