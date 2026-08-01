@@ -1,0 +1,89 @@
+package com.pixgallery.app.ui.screens
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.pixgallery.app.model.MediaItem
+import com.pixgallery.app.ui.components.MediaGrid
+import com.pixgallery.app.ui.components.SelectionActionBar
+import com.pixgallery.app.ui.components.SelectionCountBar
+
+@Composable
+fun AlbumDetailScreen(
+    albumName: String,
+    items: List<MediaItem>,
+    selectedIds: Set<Long>,
+    selectionMode: Boolean,
+    onBack: () -> Unit,
+    onItemClick: (MediaItem) -> Unit,
+    onItemLongClick: (MediaItem) -> Unit,
+    onCloseSelection: () -> Unit,
+    onSendSelected: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = {
+            if (selectionMode) {
+                SelectionCountBar(
+                    count = selectedIds.size,
+                    onClose = onCloseSelection,
+                    onMore = {}
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                    Text(albumName, style = MaterialTheme.typography.titleLarge)
+                }
+            }
+        },
+        bottomBar = {
+            if (selectionMode) {
+                Surface(tonalElevation = 3.dp) {
+                    SelectionActionBar(
+                        onSend = onSendSelected,
+                        onCreativity = {},
+                        onAddToAlbum = {},
+                        onDelete = onDeleteSelected,
+                        onMore = {}
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        if (items.isEmpty()) {
+            EmptyState("This album is empty")
+        } else {
+            MediaGrid(
+                items = items,
+                selectedIds = selectedIds,
+                selectionMode = selectionMode,
+                onClick = onItemClick,
+                onLongClick = onItemLongClick,
+                modifier = Modifier.padding(padding)
+            )
+        }
+    }
+}
