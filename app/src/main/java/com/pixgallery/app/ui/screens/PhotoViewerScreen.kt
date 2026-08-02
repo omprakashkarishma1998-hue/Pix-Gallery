@@ -45,7 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.*
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -315,13 +315,13 @@ private fun ZoomableImage(
                     }
                 )
             }
-.graphicsLayer {
-                    this.scaleX = scale
-                    this.scaleY = scale
-                    this.translationX = offset.x
-                    this.translationY = offset.y
-                }
-                .transformable(state = transformableState)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationX = offset.x
+                translationY = offset.y
+            }
+            .transformable(state = transformableState)
     )
 }
 
