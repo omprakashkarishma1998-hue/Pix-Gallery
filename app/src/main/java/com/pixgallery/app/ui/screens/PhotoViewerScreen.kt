@@ -45,14 +45,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import coil.compose.AsyncImage
 import com.pixgallery.app.model.MediaItem
 import com.pixgallery.app.model.MediaType
@@ -315,12 +318,8 @@ private fun ZoomableImage(
                     }
                 )
             }
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationX = offset.x
-                translationY = offset.y
-            }
+            .scale(scale)
+            .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
             .transformable(state = transformableState)
     )
 }
