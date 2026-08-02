@@ -315,13 +315,13 @@ private fun ZoomableImage(
                     }
                 )
             }
-            .graphicsLayer(
-                scaleX = scale,
-                scaleY = scale,
-                translationX = offset.x,
-                translationY = offset.y
-            )
-            .transformable(state = transformableState)
+.graphicsLayer {
+                    this.scaleX = scale
+                    this.scaleY = scale
+                    this.translationX = offset.x
+                    this.translationY = offset.y
+                }
+                .transformable(state = transformableState)
     )
 }
 
