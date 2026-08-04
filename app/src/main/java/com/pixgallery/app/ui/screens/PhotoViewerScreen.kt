@@ -7,11 +7,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -48,13 +45,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.layout.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -81,13 +77,10 @@ fun PhotoViewerScreen(
     val pagerState = rememberPagerState(initialPage = startIndex) { items.size }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDetailsDialog by remember { mutableStateOf(false) }
-    var pendingDelete by remember { mutableStateOf<MediaItem?>(null) }
 
     val currentItem = items.getOrNull(pagerState.currentPage)
-    // Resets to visible every time the user swipes to a different page. From
-    // then on it's a plain toggle: tapping the photo/video anywhere shows the
-    // back button + bottom action bar, tapping again hides them - same
-    // behavior for both photos and videos.
+    // Resets to visible every time the user swipes to a different page, and is
+    // driven to false automatically while a video on the current page is playing.
     var controlsVisible by remember(pagerState.currentPage) { mutableStateOf(true) }
 
     // While the current page's photo is pinch-zoomed in, the pager itself should
@@ -95,39 +88,10 @@ fun PhotoViewerScreen(
     // accidentally flip to the next photo.
     var pagerScrollEnabled by remember { mutableStateOf(true) }
 
-    val topBarVisible = controlsVisible
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(onBack) {
-                // Edge-swipe-to-back: starting a horizontal drag very close to
-                // either screen edge closes the viewer, like a system back
-                // gesture. Runs on the Initial pointer pass so it gets first
-                // look at the touch, before the pager below treats the same
-                // drag as a swipe between photos/videos.
-                val edgeWidthPx = 32.dp.toPx()
-                val thresholdPx = 60.dp.toPx()
-                awaitEachGesture {
-                    val down = awaitFirstDown(pass = PointerEventPass.Initial)
-                    val startX = down.position.x
-                    val isEdgeStart = startX <= edgeWidthPx || startX >= size.width - edgeWidthPx
-                    if (!isEdgeStart) return@awaitEachGesture
-                    var totalDrag = 0f
-                    do {
-                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!change.pressed) break
-                        totalDrag += change.positionChange().x
-                        if (kotlin.math.abs(totalDrag) > thresholdPx) {
-                            onBack()
-                            event.changes.forEach { it.consume() }
-                            break
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            }
     ) {
         HorizontalPager(
             state = pagerState,
@@ -139,11 +103,11 @@ fun PhotoViewerScreen(
                 VideoPlayerView(
                     uri = item.uri,
                     modifier = Modifier.fillMaxSize(),
-                    onTap = {
+                    onPlayingStateChanged = { isPlaying ->
                         // Only let the currently visible page control the bar -
-                        // otherwise an off-screen page's tap could fight with it.
+                        // otherwise an off-screen page's poll could fight with it.
                         if (page == pagerState.currentPage) {
-                            controlsVisible = !controlsVisible
+                            controlsVisible = !isPlaying
                         }
                     }
                 )
@@ -161,12 +125,10 @@ fun PhotoViewerScreen(
             }
         }
 
-        // Top bar (and its gradient): shows/hides together with the bottom
-        // action bar on every tap of the photo/video (see controlsVisible
-        // above). An edge-swipe (see the pointerInput on the outer Box) also
-        // triggers onBack directly, independent of whether this bar is shown.
+        // Top bar (and its gradient) hides together with the bottom action bar
+        // whenever the user taps the middle of the photo/video.
         AnimatedVisibility(
-            visible = topBarVisible,
+            visible = controlsVisible,
             modifier = Modifier.align(Alignment.TopStart),
             enter = fadeIn(),
             exit = fadeOut()
@@ -191,24 +153,15 @@ fun PhotoViewerScreen(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.35f), shape = androidx.compose.foundation.shape.CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
-                        )
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 }
             }
         }
 
-        // Bottom gradient + action bar: toggled by tapping the photo/video,
-        // shown again automatically on swiping to a new page.
+        // Bottom gradient + action bar: hidden while a video is playing, shown
+        // again the instant it's paused or a new page is swiped to.
         AnimatedVisibility(
             visible = controlsVisible,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -261,7 +214,10 @@ fun PhotoViewerScreen(
                             currentItem?.let { onToggleFavorite(it.id) }
                         }
                         ViewerAction(Icons.Filled.Delete, "Delete") {
-                            currentItem?.let { pendingDelete = it }
+                            currentItem?.let {
+                                onDelete(it)
+                                if (items.size <= 1) onBack()
+                            }
                         }
                         Box {
                             ViewerAction(Icons.Filled.MoreVert, "More") {
@@ -313,24 +269,6 @@ fun PhotoViewerScreen(
             }
         )
     }
-
-    pendingDelete?.let { item ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Move to bin?") },
-            text = { Text("It will be removed from all folders.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(item)
-                    pendingDelete = null
-                    if (items.size <= 1) onBack()
-                }) { Text("Move to bin") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            }
-        )
-    }
 }
 
 /**
@@ -348,6 +286,12 @@ private fun ZoomableImage(
 ) {
     var scale by remember(item.id) { mutableStateOf(1f) }
     var offset by remember(item.id) { mutableStateOf(Offset.Zero) }
+
+    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
+        scale = newScale
+        offset = if (newScale <= 1f) Offset.Zero else offset + panChange
+    }
 
     LaunchedEffect(scale) {
         onZoomStateChanged(scale > 1.01f)
@@ -371,47 +315,13 @@ private fun ZoomableImage(
                     }
                 )
             }
-            // Custom pinch/pan handler instead of Modifier.transformable(enabled = scale > 1f):
-            // that condition disabled zoom detection until the image was *already* zoomed in,
-            // so a pinch starting from scale = 1 was never picked up in the first place. Here we
-            // always watch for gestures, but only actually zoom/pan (and consume the touch, which
-            // stops the pager from swiping) once a real pinch (2+ fingers) is happening, or once
-            // we're already zoomed in and panning with one finger. A plain single-finger drag at
-            // scale = 1 is left untouched so it still swipes to the next photo.
-            .pointerInput(item.id) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    do {
-                        val event = awaitPointerEvent()
-                        val zoomChange = event.calculateZoom()
-                        val panChange = event.calculatePan()
-                        val isPinching = event.changes.size > 1
-                        when {
-                            isPinching -> {
-                                val newScale = (scale * zoomChange).coerceIn(1f, 5f)
-                                scale = newScale
-                                offset = if (newScale <= 1f) Offset.Zero else offset + panChange
-                                event.changes.forEach { it.consume() }
-                            }
-                            scale > 1f -> {
-                                offset += panChange
-                                event.changes.forEach { it.consume() }
-                            }
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            }
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                layout(placeable.width, placeable.height) {
-                    placeable.placeWithLayer(0, 0) {
-                        this.scaleX = scale
-                        this.scaleY = scale
-                        this.translationX = offset.x
-                        this.translationY = offset.y
-                    }
-                }
-            }
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale,
+                translationX = offset.x,
+                translationY = offset.y
+            )
+            .transformable(state = transformableState)
     )
 }
 
@@ -422,17 +332,8 @@ private fun ViewerAction(
     onClick: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.35f), shape = androidx.compose.foundation.shape.CircleShape)
-        ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
+        IconButton(onClick = onClick) {
+            Icon(icon, contentDescription = label, tint = Color.White)
         }
         Text(label, color = Color.White, style = MaterialTheme.typography.labelSmall)
     }
